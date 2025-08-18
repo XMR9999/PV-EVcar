@@ -9,7 +9,7 @@ import numpy as np
 print("--- 步骤 1 & 2: 定义模型参数和输入数据 ---")
 
 # 1. 定义集合
-# 修改: 时间周期从24小时改为96个15分钟的时间段 (24 * 4 = 96)
+# 时间周期为96个15分钟的时间段 (24 * 4 = 96)
 T = 96  
 regions = ['A', 'B', 'C'] # 区域
 lines = {('A', 'B'), ('B', 'C'), ('A', 'C')} # 输电线路
@@ -18,7 +18,7 @@ lines = {('A', 'B'), ('B', 'C'), ('A', 'C')} # 输电线路
 # 原始的分时电价 (24小时)
 hourly_buy_price = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1.2, 1.2, 1.2, 1.2, 0.8, 0.8, 
                     0.8, 0.8, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 0.8, 0.8, 0.5, 0.5]
-# 修改: 将每小时电价重复4次，以适应15分钟的时间间隔
+# 将每小时电价重复4次，以适应15分钟的时间间隔
 buy_price_15min = np.repeat(hourly_buy_price, 4)
 
 params = {
@@ -47,48 +47,63 @@ params = {
     'line_loss_rate': 0.05, # 简化的传输损耗率
 }
 
-# 3. 加载和处理预测数据
-# 修改: 使用您提供的绝对文件路径加载CSV数据
-# 在字符串前加 r 表示这是一个“原始字符串”，可以避免反斜杠的转义问题
-file_path = r"D:\Desktop\EVcar\PV-EVcar\forecast 1 year load.csv"
+# 3. 从CSV文件加载所有真实预测数据
+# --- 加载电动汽车负荷数据 ---
+file_path_ev = r"D:\Desktop\EVcar\PV-EVcar\forecast 1 year load.csv"
 try:
-    ev_load_df = pd.read_csv(file_path)
-    # 选取前96个时间点 (代表第一天)
+    ev_load_df = pd.read_csv(file_path_ev)
     ev_load_df_day1 = ev_load_df.head(T)
-    
-    # 将列名从 'region A' 格式重命名为 'A'
-    ev_load_df_day1 = ev_load_df_day1.rename(columns={
-        'region A': 'A',
-        'region B': 'B',
-        'region C': 'C'
-    })
-    
+    ev_load_df_day1 = ev_load_df_day1.rename(columns={'region A': 'A', 'region B': 'B', 'region C': 'C'})
     P_EV_pred_real = {
         'A': ev_load_df_day1['A'].values,
         'B': ev_load_df_day1['B'].values,
         'C': ev_load_df_day1['C'].values,
     }
-    print(f"成功从路径 '{file_path}' 加载真实电动汽车负荷数据。")
+    print(f"成功从路径 '{file_path_ev}' 加载真实电动汽车负荷数据。")
 except FileNotFoundError:
-    print(f"错误: 在路径 '{file_path}' 未找到数据文件。请确保文件路径和名称完全正确。")
-    # 如果文件未找到，可以停止执行或使用备用数据
+    print(f"错误: 在路径 '{file_path_ev}' 未找到数据文件。请确保文件路径和名称完全正确。")
+    exit()
+
+# --- 加载光伏发电数据 ---
+file_path_pv_a = r"D:\Desktop\EVcar\PV-EVcar\One year of solar photovoltaic data A.csv"
+file_path_pv_c = r"D:\Desktop\EVcar\PV-EVcar\One year of solar photovoltaic data C.csv"
+try:
+    # 读取A区光伏数据
+    df_pv_a = pd.read_csv(file_path_pv_a, header=None)
+    # 修正: 从第0列 (第一列) 提取前96行数据
+    pv_a_data = df_pv_a.iloc[:T, 0].values
+    print(f"成功从路径 '{file_path_pv_a}' 加载A区光伏数据。")
+
+    # 读取C区光伏数据
+    df_pv_c = pd.read_csv(file_path_pv_c, header=None)
+    # 修正: 从第0列 (第一列) 提取前96行数据
+    pv_c_data = df_pv_c.iloc[:T, 0].values
+    print(f"成功从路径 '{file_path_pv_c}' 加载C区光伏数据。")
+
+    # 组合成完整的光伏预测字典
+    P_PV_pred_real = {
+        'A': pv_a_data,
+        'B': np.zeros(T), # B区无光伏
+        'C': pv_c_data,
+    }
+except FileNotFoundError as e:
+    print(f"错误: 光伏数据文件未找到。请检查路径。 {e}")
+    exit()
+except Exception as e:
+    print(f"读取光伏数据时发生错误: {e}")
     exit()
 
 
-# 4. 生成其他模拟的预测数据 (匹配96个时间点)
+# 4. 组合所有数据
 np.random.seed(42)
 data = {
-    'P_L_pred': { # 居民负荷 (kW)
+    'P_L_pred': { # 居民负荷 (kW) - 仍然使用模拟数据
         'A': 500 + 300 * np.sin(np.linspace(0, 2*np.pi, T)),
         'B': 400 + 250 * np.sin(np.linspace(0.5, 2*np.pi+0.5, T)),
         'C': 600 + 400 * np.sin(np.linspace(0.2, 2*np.pi+0.2, T)),
     },
-    'P_EV_pred': P_EV_pred_real, # 使用从CSV加载的真实数据
-    'P_PV_pred': { # 光伏预测 (kW)
-        'A': np.maximum(0, 1500 * np.sin(np.linspace(-0.2*np.pi, 1.2*np.pi, T))),
-        'B': np.zeros(T), # B区无光伏
-        'C': np.maximum(0, 1800 * np.sin(np.linspace(-0.1*np.pi, 1.1*np.pi, T))),
-    }
+    'P_EV_pred': P_EV_pred_real, # 使用从CSV加载的真实EV数据
+    'P_PV_pred': P_PV_pred_real, # 使用从CSV加载的真实PV数据
 }
 # 确保居民负荷为正
 for r in regions:
@@ -155,8 +170,6 @@ for t in model.T:
             soc_prev = params['ess_soc_initial'] * params['ess_capacity'][r]
         else:
             soc_prev = model.SOC[r, t-1]
-        # 注意: 充放电功率的单位是kW, 容量单位是kWh。时间间隔是15分钟(0.25小时)
-        # 因此SOC更新方程需要乘以时间间隔
         dt = 0.25 # 15分钟 = 0.25小时
         model.constraints.add(model.SOC[r, t] == soc_prev + model.P_ch[r, t] * params['eff_ch'] * dt - (model.P_dis[r, t] / params['eff_dis']) * dt)
         
@@ -175,7 +188,7 @@ for t in model.T:
 print("模型构建完成。")
 
 # =============================================================================
-# 步骤 4: 求解模型与结果分析 (可视化部分已修改)
+# 步骤 4: 求解模型与结果分析 (无需修改)
 # =============================================================================
 print("\n--- 步骤 4: 求解模型并分析结果 ---")
 
@@ -226,7 +239,6 @@ if (results.solver.status == pyo.SolverStatus.ok) and (results.solver.terminatio
         ax1.stackplot(df.index, df[power_sources].T, labels=[s.replace('(kW)','') for s in power_sources], alpha=0.8)
         ax1.plot(df.index, df[power_loads].sum(axis=1), 'r--', label='Total Load', linewidth=2)
         ax1.set_title(f"{r}区 - 功率平衡")
-        # 修改: 更新X轴标签
         ax1.set_xlabel("时间步 (15分钟/步)")
         ax1.set_ylabel("功率 (kW)")
         ax1.legend(loc='upper left')
@@ -237,7 +249,6 @@ if (results.solver.status == pyo.SolverStatus.ok) and (results.solver.terminatio
         ax2.axhline(y=params['ess_soc_min']*100, color='r', linestyle='--', label='Min SOC')
         ax2.axhline(y=params['ess_soc_max']*100, color='r', linestyle='--', label='Max SOC')
         ax2.set_title(f"{r}区 - 储能SOC")
-        # 修改: 更新X轴标签
         ax2.set_xlabel("时间步 (15分钟/步)")
         ax2.set_ylabel("SOC (%)")
         ax2.set_ylim(0, 100)

@@ -16,8 +16,8 @@ lines = {('A', 'B'), ('B', 'C'), ('A', 'C')} # 输电线路
 
 # 2. 定义参数
 # 原始的分时电价 (24小时)
-hourly_buy_price = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1.2, 1.2, 1.2, 1.2, 0.8, 0.8, 
-                    0.8, 0.8, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 0.8, 0.8, 0.5, 0.5]
+hourly_buy_price = [0.06, 0.06, 0.07, 0.08, 0.09, 0.10, 0.11, 0.12, 0.15, 0.18, 0.20, 0.18, 
+                    0.15, 0.14, 0.12, 0.11, 0.10, 0.12, 0.15, 0.18, 0.20, 0.18, 0.15, 0.12]
 # 将每小时电价重复4次，以适应15分钟的时间间隔
 buy_price_15min = np.repeat(hourly_buy_price, 4)
 
@@ -27,14 +27,14 @@ params = {
     'lines': lines,
     # 成本/价格 (元/kWh)
     'buy_price': buy_price_15min, # 使用新的15分钟电价
-    'sell_price': 0.3,   # 卖电价格
+    'sell_price': 0.4,   # 卖电价格
     'cost_curtailment': 0.1, # 弃光成本
-    'cost_ess': 0.05,        # 储能充放电成本
+    'cost_ess': 0.08,        # 储能充放电成本
     'cost_transmission': 0.02, # 区域间传输成本
     
     # 储能系统 (ESS) 参数
-    'ess_capacity': {'A': 2000, 'B': 1500, 'C': 2000}, # 额定容量 (kWh)
-    'ess_p_max': {'A': 500, 'B': 400, 'C': 500},     # 最大充/放电功率 (kW)
+    'ess_capacity': {'A': 450, 'B': 600, 'C': 350}, # 额定容量 (kWh)
+    'ess_p_max': {'A': 150, 'B': 120, 'C': 100},     # 最大充/放电功率 (kW)
     'ess_soc_min': 0.2,  # 最小SOC
     'ess_soc_max': 0.95, # 最大SOC
     'ess_soc_initial': 0.5, # 初始SOC
@@ -42,13 +42,14 @@ params = {
     'eff_dis': 0.95,     # 放电效率
 
     # 电网和线路参数
-    'grid_p_max': 10000, # 与主电网交互的最大功率 (kW)
-    'line_capacity': {('A', 'B'): 800, ('B', 'C'): 800, ('A', 'C'): 800}, # 线路容量 (kW)
+    'grid_p_max': 2000, # 与主电网交互的最大功率 (kW)
+    'line_capacity': {('A', 'B'): 200, ('B', 'C'): 200, ('A', 'C'): 200}, # 线路容量 (kW)
     'line_loss_rate': 0.05, # 简化的传输损耗率
 }
 
 # 3. 从CSV文件加载所有真实预测数据
 # --- 加载电动汽车负荷数据 ---
+# 请注意：您需要将下面的文件路径更新为您本地文件的实际位置
 file_path_ev = r"D:\Desktop\EVcar\PV-EVcar\forecast 1 year load.csv"
 try:
     ev_load_df = pd.read_csv(file_path_ev)
@@ -65,19 +66,20 @@ except FileNotFoundError:
     exit()
 
 # --- 加载光伏发电数据 ---
+# 请注意：您需要将下面的文件路径更新为您本地文件的实际位置
 file_path_pv_a = r"D:\Desktop\EVcar\PV-EVcar\One year of solar photovoltaic data A.csv"
 file_path_pv_c = r"D:\Desktop\EVcar\PV-EVcar\One year of solar photovoltaic data C.csv"
 try:
     # 读取A区光伏数据
     df_pv_a = pd.read_csv(file_path_pv_a, header=None)
-    # 修正: 从第0列 (第一列) 提取前96行数据
-    pv_a_data = df_pv_a.iloc[:T, 0].values
+    # 修正: 从第0列 (第一列) 提取前96行数据，并乘以100
+    pv_a_data = df_pv_a.iloc[:T, 0].values * 100
     print(f"成功从路径 '{file_path_pv_a}' 加载A区光伏数据。")
 
     # 读取C区光伏数据
     df_pv_c = pd.read_csv(file_path_pv_c, header=None)
-    # 修正: 从第0列 (第一列) 提取前96行数据
-    pv_c_data = df_pv_c.iloc[:T, 0].values
+    # 修正: 从第0列 (第一列) 提取前96行数据，并乘以100
+    pv_c_data = df_pv_c.iloc[:T, 0].values * 100
     print(f"成功从路径 '{file_path_pv_c}' 加载C区光伏数据。")
 
     # 组合成完整的光伏预测字典
@@ -98,9 +100,9 @@ except Exception as e:
 np.random.seed(42)
 data = {
     'P_L_pred': { # 居民负荷 (kW) - 仍然使用模拟数据
-        'A': 500 + 300 * np.sin(np.linspace(0, 2*np.pi, T)),
-        'B': 400 + 250 * np.sin(np.linspace(0.5, 2*np.pi+0.5, T)),
-        'C': 600 + 400 * np.sin(np.linspace(0.2, 2*np.pi+0.2, T)),
+        'A': 150 + 300 * np.sin(np.linspace(0, 2*np.pi, T)),
+        'B': 100 + 250 * np.sin(np.linspace(0.5, 2*np.pi+0.5, T)),
+        'C': 200 + 200 * np.sin(np.linspace(0.2, 2*np.pi+0.2, T)),
     },
     'P_EV_pred': P_EV_pred_real, # 使用从CSV加载的真实EV数据
     'P_PV_pred': P_PV_pred_real, # 使用从CSV加载的真实PV数据

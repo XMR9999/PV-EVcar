@@ -70,14 +70,14 @@ file_path_pv_c = r"D:\Desktop\EVcar\PV-EVcar\One year of solar photovoltaic data
 try:
     # 读取A区光伏数据
     df_pv_a = pd.read_csv(file_path_pv_a, header=None)
-    # 修正: 从第0列 (第一列) 提取前96行数据
-    pv_a_data = df_pv_a.iloc[:T, 0].values
+    # 修正: 从第0列 (第一列) 提取前96行数据，并乘以100
+    pv_a_data = df_pv_a.iloc[:T, 0].values * 100
     print(f"成功从路径 '{file_path_pv_a}' 加载A区光伏数据。")
 
     # 读取C区光伏数据
     df_pv_c = pd.read_csv(file_path_pv_c, header=None)
-    # 修正: 从第0列 (第一列) 提取前96行数据
-    pv_c_data = df_pv_c.iloc[:T, 0].values
+    # 修正: 从第0列 (第一列) 提取前96行数据，并乘以100
+    pv_c_data = df_pv_c.iloc[:T, 0].values * 100
     print(f"成功从路径 '{file_path_pv_c}' 加载C区光伏数据。")
 
     # 组合成完整的光伏预测字典
@@ -261,3 +261,4 @@ else:
     print("\n求解失败。")
     print("Solver Status:", results.solver.status)
     print("Termination Condition:", results.solver.termination_condition)
+

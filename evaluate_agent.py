@@ -195,5 +195,5 @@ if __name__ == '__main__':
     # return next_state, reward, terminated, truncated, info
     
     # 假设ev_env.py已按上述方式修改
-    evaluate_agent(day_to_test=300)
+    evaluate_agent(day_to_test=2)
 

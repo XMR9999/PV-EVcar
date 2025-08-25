@@ -168,12 +168,23 @@ if __name__ == '__main__':
         'residential_load': "residential load.csv",
     }
     
-    # 从您的get_parameters函数获取参数
-    # (这里为了脚本独立性，简化了参数)
+    # ==================== 代码修改部分开始 ====================
+    # 更新电价参数以匹配 evaluate_agent.py 和 ev_env.py
+    price_buy = {}
+    for t in range(96):
+        hour = t * 0.25
+        if 0 <= hour < 7:
+            price_buy[t] = 0.30  # 谷
+        elif (10 <= hour < 12) or (18 <= hour < 21):
+            price_buy[t] = 0.86  # 峰
+        else:
+            price_buy[t] = 0.58  # 平
+
     PARAMS = {
         'T': 96, 'delta_t': 0.25, 'regions': ['A', 'B', 'C'],
-        'price_buy': {t: 0.25 if 0 <= t * 0.25 < 7 else (1.2 if (10 <= t * 0.25 < 12) or (18 <= t * 0.25 < 21) else 0.8) for t in range(96)},
-        'price_sell': 0.4, 'cost_curtailment': 0.1, 'cost_ess_deg': 0.08, 
+        'price_buy': price_buy,
+        'price_sell': 0.26, # <--- 修改售电价格
+        'cost_curtailment': 0.1, 'cost_ess_deg': 0.08, 
         'cost_transmission': 0.02, 'trans_loss_factor': 0.05, 'trans_max_power': 200,
         'ess_capacity': {'A': 450, 'B': 600, 'C': 350}, 'ess_soc_min': 0.2, 
         'ess_soc_max': 0.95, 'ess_charge_eff': 0.95, 'ess_discharge_eff': 0.95,
@@ -181,6 +192,7 @@ if __name__ == '__main__':
         'ess_p_discharge_max': {'A': 150, 'B': 120, 'C': 100},
         'ess_initial_soc_val': 0.5
     }
+    # ==================== 代码修改部分结束 ====================
 
     # 创建环境和智能体
     env = MultiRegionEnv(data_files=DATA_FILES, params=PARAMS)
@@ -190,7 +202,7 @@ if __name__ == '__main__':
     agent = DDPGAgent(state_dim, action_dim, max_action)
 
     # 训练参数
-    max_episodes = 500  # 总训练回合数
+    max_episodes = 10000  # 总训练回合数
     max_timesteps = 96  # 每个回合的最大步数
     expl_noise = 0.1    # 探索噪声的标准差
     
@@ -248,4 +260,3 @@ if __name__ == '__main__':
     print("学习曲线图已保存为 'ddpg_learning_curve.png'")
     
     env.close()
-

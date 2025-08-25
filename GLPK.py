@@ -317,7 +317,7 @@ def process_and_visualize_results(model, data, params):
 # --- 步骤 5: 主执行函数 ---
 if __name__ == '__main__':
     # 加载数据
-    input_data = load_and_prepare_data(day_index=30) # 模拟第一天 (第0列)
+    input_data = load_and_prepare_data(day_index=25) # 模拟第一天 (第0列)
     
     if input_data is not None:
         # 获取参数

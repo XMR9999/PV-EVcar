@@ -240,7 +240,7 @@ def process_and_visualize_results(model, data, params):
     results_df.index.name = 'Hour'
     
     # 保存结果到CSV
-    results_filename = 'optimal_schedule_results.csv'
+    results_filename = 'optimal_schedule_glpk.csv'
     results_df.to_csv(results_filename)
     print(f"详细调度结果已保存到 '{results_filename}'")
 
@@ -263,7 +263,7 @@ def process_and_visualize_results(model, data, params):
         plt.grid(True, linestyle='--', alpha=0.6)
         plt.xlim(0, 24)
         plt.xticks(range(0, 25, 2))
-        plt.savefig(f'power_dispatch_region_{r}.png')
+        plt.savefig(f'glpk_region_{r}.png')
         plt.close()
 
     # 2. 储能SOC变化图
@@ -278,7 +278,7 @@ def process_and_visualize_results(model, data, params):
     plt.xlim(0, 24)
     plt.ylim(0, 100)
     plt.xticks(range(0, 25, 2))
-    plt.savefig('ess_soc_profile.png')
+    plt.savefig('ess_soc_glpk.png')
     plt.close()
 
     # 3. 区域间传输功率图
@@ -294,7 +294,7 @@ def process_and_visualize_results(model, data, params):
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.xlim(0, 24)
     plt.xticks(range(0, 25, 2))
-    plt.savefig('inter_regional_transmission.png')
+    plt.savefig('inter_regional_transmission_glpk.png')
     plt.close()
     
     # --- 新增图表: 向主电网售电功率图 ---
@@ -308,7 +308,7 @@ def process_and_visualize_results(model, data, params):
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.xlim(0, 24)
     plt.xticks(range(0, 25, 2))
-    plt.savefig('sell_to_grid_profile.png')
+    plt.savefig('sell_to_grid_glpk.png')
     plt.close()
     
     print("结果图表已成功保存为PNG文件。")
@@ -317,7 +317,7 @@ def process_and_visualize_results(model, data, params):
 # --- 步骤 5: 主执行函数 ---
 if __name__ == '__main__':
     # 加载数据
-    input_data = load_and_prepare_data(day_index=25) # 模拟第一天 (第0列)
+    input_data = load_and_prepare_data(day_index=300) # 模拟第一天 (第0列)
     
     if input_data is not None:
         # 获取参数

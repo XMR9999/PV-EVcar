@@ -85,7 +85,8 @@ class DDPGAgent:
         self.critic = Critic(state_dim, action_dim)
         self.critic_target = Critic(state_dim, action_dim)
         self.critic_target.load_state_dict(self.critic.state_dict())
-        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=1e-3)
+        # ==================== 修改点 1: 降低Critic学习率 ====================
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=3e-4) # 原为 1e-3
 
         # 初始化经验回放池
         self.replay_buffer = ReplayBuffer(buffer_size=100000, batch_size=100)
@@ -125,15 +126,20 @@ class DDPGAgent:
         
         # 计算Critic损失
         critic_loss = F.mse_loss(current_Q, target_Q.detach())
+
+        # ==================== 修改点 3: 增加诊断代码 ====================
+        if torch.isnan(critic_loss):
+            print("CRITICAL ERROR: Critic loss is NaN!")
+            print("target_Q sample:", target_Q[:5].data)
+            print("current_Q sample:", current_Q[:5].data)
+            # 在这里可以设置断点或直接退出
+            sys.exit("Training stopped due to NaN loss.")
+        # =============================================================
         
         # 优化Critic
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
-        
-        # --- 代码修正处: 添加梯度裁剪 ---
-        # 在优化器更新权重之前，对梯度进行裁剪
         torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 1.0)
-        
         self.critic_optimizer.step()
 
         # 3. 更新Actor网络
@@ -143,6 +149,9 @@ class DDPGAgent:
         # 优化Actor
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
+        # ==================== 修改点 2: 为Actor增加梯度裁剪 ====================
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 1.0)
+        # ===================================================================
         self.actor_optimizer.step()
 
         # 4. 软更新目标网络
@@ -168,8 +177,6 @@ if __name__ == '__main__':
         'residential_load': "residential load.csv",
     }
     
-    # ==================== 代码修改部分开始 ====================
-    # 更新电价参数以匹配 evaluate_agent.py 和 ev_env.py
     price_buy = {}
     for t in range(96):
         hour = t * 0.25
@@ -183,7 +190,7 @@ if __name__ == '__main__':
     PARAMS = {
         'T': 96, 'delta_t': 0.25, 'regions': ['A', 'B', 'C'],
         'price_buy': price_buy,
-        'price_sell': 0.26, # <--- 修改售电价格
+        'price_sell': 0.26,
         'cost_curtailment': 0.1, 'cost_ess_deg': 0.08, 
         'cost_transmission': 0.02, 'trans_loss_factor': 0.05, 'trans_max_power': 200,
         'ess_capacity': {'A': 450, 'B': 600, 'C': 350}, 'ess_soc_min': 0.2, 
@@ -192,7 +199,6 @@ if __name__ == '__main__':
         'ess_p_discharge_max': {'A': 150, 'B': 120, 'C': 100},
         'ess_initial_soc_val': 0.5
     }
-    # ==================== 代码修改部分结束 ====================
 
     # 创建环境和智能体
     env = MultiRegionEnv(data_files=DATA_FILES, params=PARAMS)
@@ -202,11 +208,11 @@ if __name__ == '__main__':
     agent = DDPGAgent(state_dim, action_dim, max_action)
 
     # 训练参数
-    max_episodes = 10000  # 总训练回合数
-    max_timesteps = 96  # 每个回合的最大步数
-    expl_noise = 0.1    # 探索噪声的标准差
+    max_episodes = 10000  # 建议增加训练轮数以看到稳定效果
+    max_timesteps = 96
+    expl_noise = 0.1
     
-    episode_rewards = [] # 记录每个回合的总奖励
+    episode_rewards = []
 
     # --- 开始训练 ---
     print("\n--- 开始DDPG训练 ---")
@@ -215,19 +221,20 @@ if __name__ == '__main__':
         episode_reward = 0
         
         for t in range(max_timesteps):
-            # 选择动作并添加噪声
             action = agent.select_action(state)
             noise = np.random.normal(0, max_action * expl_noise, size=action_dim)
             action = (action + noise).clip(env.action_space.low, env.action_space.high)
             
-            # 与环境交互
             next_state, reward, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
             
-            # 存入经验池
+            # 检查reward是否为nan
+            if np.isnan(reward):
+                print(f"ERROR: Reward became NaN at episode {episode+1}, timestep {t}. Aborting.")
+                # 可以在这里保存一些状态信息用于调试
+                sys.exit("Training stopped due to NaN reward.")
+
             agent.replay_buffer.push(state, action, reward, next_state, done)
-            
-            # 更新网络
             agent.update()
             
             state = next_state
@@ -238,9 +245,12 @@ if __name__ == '__main__':
         
         episode_rewards.append(episode_reward)
         
-        # 打印训练进度
         if (episode + 1) % 10 == 0:
-            avg_reward = np.mean(episode_rewards[-10:])
+            # 检查是否有nan值，如果有，则不计算平均值
+            if np.isnan(episode_rewards[-10:]).any():
+                avg_reward = float('nan')
+            else:
+                avg_reward = np.mean(episode_rewards[-10:])
             print(f"Episode: {episode+1}, Avg. Reward: {avg_reward:.2f}")
 
     # --- 训练结束 ---
